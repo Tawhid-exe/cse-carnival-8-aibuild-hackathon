@@ -126,5 +126,20 @@ export const tools = [
         }
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "cancel_event_registration",
+      description: "Cancel an event registration using event_id and either registration_id or student_id.",
+      parameters: {
+        type: "object",
+        required: ["event_id", "registration_id"],
+        properties: {
+          event_id: { type: "string", description: "Event id e.g. evt-001" },
+          registration_id: { type: "string", description: "Registration ID (e.g. reg-123) or Student ID (e.g. 20-40532)" }
+        }
+      }
+    }
   }
 ]

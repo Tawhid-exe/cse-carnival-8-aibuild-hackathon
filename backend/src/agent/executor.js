@@ -1,10 +1,14 @@
 import OpenAI from "openai"
 import { tools } from "./tools.js"
 import { SYSTEM_PROMPT } from "./prompt.js"
+import * as scheduleService from "../services/scheduleService.js"
+import * as roomService from "../services/roomService.js"
+import * as eventService from "../services/eventService.js"
+import * as announcementService from "../services/announcementService.js"
+import * as assignmentService from "../services/assignmentService.js"
 
 const MAX_ROUNDS = 5
-const MODEL = "gemini-3.6-flash"
-const API_BASE = `http://localhost:${process.env.PORT || 4000}`
+const MODEL = "gemini-2.0-flash"
 
 let _client = null
 function getClient() {
@@ -20,7 +24,7 @@ function getClient() {
   return _client
 }
 
-export async function runAgent({ messages, student_id, name }) {
+export async function runAgent({ messages, student_id, name, user_id }) {
   const client = getClient()
   const now = new Date()
   const weekday = now.toLocaleDateString("en-US", { weekday: "long" })
@@ -34,6 +38,8 @@ export async function runAgent({ messages, student_id, name }) {
     ...messages
   ]
   const toolCalls = []
+
+  const userContext = { student_id, name, user_id, id: user_id }
 
   for (let i = 0; i < MAX_ROUNDS; i++) {
     const res = await client.chat.completions.create({
@@ -55,7 +61,7 @@ export async function runAgent({ messages, student_id, name }) {
       const args = typeof call.function.arguments === "string"
         ? JSON.parse(call.function.arguments)
         : call.function.arguments
-      const result = await executeTool(call.function.name, args)
+      const result = await executeTool(call.function.name, args, userContext)
       toolCalls.push({ tool: call.function.name, args, result })
       transcript.push({
         role: "tool",
@@ -74,80 +80,94 @@ export async function runAgent({ messages, student_id, name }) {
   }
 }
 
-function qs(obj) {
-  const p = new URLSearchParams()
-  for (const [k, v] of Object.entries(obj)) {
-    if (v !== undefined && v !== null && v !== "") p.set(k, String(v))
-  }
-  return p.toString()
-}
-
-async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`)
-  return res.json()
-}
-async function apiPost(path, body) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  })
-  return res.json()
-}
-async function apiDelete(path) {
-  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE" })
-  return res.ok ? res.json() : { error: `HTTP ${res.status}` }
-}
-
-async function executeTool(name, args) {
+async function executeTool(name, args, userContext = {}) {
   try {
     switch (name) {
-      case "list_schedules":
-        return apiGet(`/api/schedules?${qs(args)}`)
+      case "list_schedules": {
+        const data = await scheduleService.listSchedules(args)
+        return { data, count: data.length }
+      }
 
-      case "list_rooms":
-        return apiGet(`/api/rooms?${qs(args)}`)
+      case "list_rooms": {
+        const data = await roomService.listRooms(args)
+        return { data, count: data.length }
+      }
 
-      case "list_events":
-        return apiGet(`/api/events?${qs(args)}`)
+      case "list_events": {
+        if (args.id) {
+          const item = await eventService.getEvent(args.id)
+          return { data: item }
+        }
+        const data = await eventService.listEvents(args)
+        return { data, count: data.length }
+      }
 
-      case "list_announcements":
-        return apiGet(`/api/announcements?${qs(args)}`)
+      case "list_announcements": {
+        const data = await announcementService.listAnnouncements(args)
+        return { data, count: data.length }
+      }
 
-      case "list_assignments":
-        return apiGet(`/api/assignments?${qs(args)}`)
+      case "list_assignments": {
+        const data = await assignmentService.listAssignments(args)
+        return { data, count: data.length }
+      }
 
       case "book_room": {
-        const list = await apiGet(`/api/rooms?room_number=${encodeURIComponent(args.room_number)}`)
-        if (!list.data?.length) return { error: `Room ${args.room_number} not found` }
-        return apiPost(`/api/rooms/${list.data[0].id}/book`, {
+        const rooms = await roomService.listRooms({ room_number: args.room_number })
+        if (!rooms || rooms.length === 0) {
+          return { error: `Room ${args.room_number} not found` }
+        }
+        const result = await roomService.bookRoom(rooms[0].id, {
           date: args.date,
           start_time: args.start_time,
           end_time: args.end_time,
-          booked_by: args.booked_by,
-          purpose: args.purpose
+          booked_by: args.booked_by || userContext.name || "Student",
+          user_id: userContext.user_id || userContext.id || "",
+          purpose: args.purpose || ""
         })
+        return { data: result.room, booking: result.booking }
       }
 
       case "register_event": {
-        const list = await apiGet(`/api/events?id=${encodeURIComponent(args.event_id)}`)
-        if (!list.data?.length) return { error: `Event ${args.event_id} not found` }
-        return apiPost(`/api/events/${list.data[0].id}/register`, {
-          student_id: args.student_id,
-          name: args.name
+        let eventId = args.event_id
+        // Allow event_id to be either an id or matched by name
+        if (!eventId && args.name) {
+          const events = await eventService.listEvents({ organizer: args.name })
+          if (events.length) eventId = events[0].id
+        }
+        if (!eventId) {
+          return { error: "event_id is required" }
+        }
+        const result = await eventService.registerForEvent(eventId, {
+          student_id: args.student_id || userContext.student_id,
+          name: args.name || userContext.name,
+          user_id: userContext.user_id || userContext.id || ""
         })
+        return { data: result.event, registration: result.registration }
       }
 
       case "cancel_booking": {
-        const list = await apiGet(`/api/rooms?room_number=${encodeURIComponent(args.room_number)}`)
-        if (!list.data?.length) return { error: `Room ${args.room_number} not found` }
-        return apiDelete(`/api/rooms/${list.data[0].id}/book/${args.booking_id}`)
+        const rooms = await roomService.listRooms({ room_number: args.room_number })
+        if (!rooms || rooms.length === 0) {
+          return { error: `Room ${args.room_number} not found` }
+        }
+        const result = await roomService.cancelBooking(rooms[0].id, args.booking_id, userContext)
+        return { data: result.room, message: "Booking cancelled successfully" }
+      }
+
+      case "cancel_event_registration": {
+        const result = await eventService.cancelRegistration(
+          args.event_id,
+          args.registration_id,
+          userContext
+        )
+        return { data: result.event, message: "Registration cancelled successfully" }
       }
 
       default:
         return { error: `Unknown tool: ${name}` }
     }
   } catch (err) {
-    return { error: err.message }
+    return { error: err.message, code: err.code }
   }
 }

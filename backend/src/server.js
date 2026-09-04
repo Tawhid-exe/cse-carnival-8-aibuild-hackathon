@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url"
 import { connectDB } from "./db.js"
 import { seedIfEmpty } from "./seed.js"
 import { errorHandler } from "./middleware/error.js"
+import { optionalAuth } from "./middleware/auth.js"
 
 import schedules from "./routes/schedules.js"
 import rooms from "./routes/rooms.js"
@@ -15,6 +16,7 @@ import events from "./routes/events.js"
 import announcements from "./routes/announcements.js"
 import assignments from "./routes/assignments.js"
 import agent from "./routes/agent.js"
+import seed from "./routes/seed.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.resolve(__dirname, "../.env") })
@@ -28,6 +30,7 @@ app.use(cors({
 }))
 app.use(express.json())
 app.use(morgan("dev"))
+app.use(optionalAuth)
 
 app.get("/health", (_, res) => res.json({ ok: true, service: "campusos-backend" }))
 
@@ -37,6 +40,7 @@ app.use("/api/events", events)
 app.use("/api/announcements", announcements)
 app.use("/api/assignments", assignments)
 app.use("/api/agent", agent)
+app.use("/api/seed", seed)
 
 app.use(errorHandler)
 

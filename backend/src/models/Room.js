@@ -4,6 +4,7 @@ const BookingSchema = new mongoose.Schema(
   {
     booking_id: { type: String, required: true },
     booked_by: { type: String, required: true },
+    user_id: { type: String, default: "" },   // Better Auth user.id — for ownership checks
     date: { type: String, required: true },
     start_time: { type: String, required: true },
     end_time: { type: String, required: true },

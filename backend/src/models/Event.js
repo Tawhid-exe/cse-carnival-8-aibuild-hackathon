@@ -2,8 +2,10 @@ import mongoose from "mongoose"
 
 const RegistrationSchema = new mongoose.Schema(
   {
+    registration_id: { type: String, required: true },  // generated on insert e.g. reg-<timestamp>
     student_id: { type: String, required: true },
     name: { type: String, required: true },
+    user_id: { type: String, default: "" },             // Better Auth user.id
     registered_at: { type: Date, default: Date.now }
   },
   { _id: false }
