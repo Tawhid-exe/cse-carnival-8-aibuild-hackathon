@@ -2,7 +2,10 @@ import mongoose from "mongoose"
 
 const RegistrationSchema = new mongoose.Schema(
   {
-    registration_id: { type: String, required: true },  // generated on insert e.g. reg-<timestamp>
+    registration_id: {
+      type: String,
+      default: () => `reg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    },
     student_id: { type: String, required: true },
     name: { type: String, required: true },
     user_id: { type: String, default: "" },             // Better Auth user.id

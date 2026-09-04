@@ -8,7 +8,7 @@ import * as announcementService from "../services/announcementService.js"
 import * as assignmentService from "../services/assignmentService.js"
 
 const MAX_ROUNDS = 5
-const MODEL = "gemini-2.0-flash"
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash"
 
 let _client = null
 function getClient() {

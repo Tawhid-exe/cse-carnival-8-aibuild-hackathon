@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "seed": "node -e \"import('./src/db.js').then(m => m.connectDB()).then(() => import('./src/seed.js')).then(s => s.seedIfEmpty()).then(() => process.exit(0))\"",
+    "seed:force": "node -e \"import('./src/db.js').then(m => m.connectDB()).then(() => import('./src/seed.js')).then(s => s.seedForce()).then(() => process.exit(0))\"",
     "build": "echo \"Backend is plain Node — no build step\""
   },
   "dependencies": {

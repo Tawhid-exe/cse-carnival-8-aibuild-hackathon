@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Pencil, Plus, Trash2, UserMinus, UserPlus } from "lucide-react"
+import { Calendar, MapPin, Pencil, Plus, Trash2, UserMinus, UserPlus, Users } from "lucide-react"
 import { toast } from "sonner"
 import { Container } from "@/components/layout/PageLayout"
 import { PageHeader } from "@/components/common/PageHeader"
@@ -17,15 +17,30 @@ function EventForm({ value }: { value?: any }) {
   return (
     <>
       <Field label="Event name">
-        <Input name="name" defaultValue={value?.name} required placeholder="Hackathon Kickoff" />
+        <Input name="name" defaultValue={value?.name} required placeholder="e.g. CSE Carnival Hackathon" />
+      </Field>
+      <Field label="Description">
+        <Input name="description" defaultValue={value?.description} placeholder="Short event description" />
+      </Field>
+      <Field label="Date">
+        <Input name="date" type="date" defaultValue={value?.date} required />
       </Field>
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Date"><Input name="date" type="date" defaultValue={value?.date} required /></Field>
-        <Field label="Time"><Input name="time" type="time" defaultValue={value?.time ?? "10:00"} required /></Field>
+        <Field label="Starts">
+          <Input name="start_time" type="time" defaultValue={value?.start_time || value?.time || "10:00"} required />
+        </Field>
+        <Field label="Ends">
+          <Input name="end_time" type="time" defaultValue={value?.end_time || "12:00"} required />
+        </Field>
       </div>
-      <Field label="Location">
-        <Input name="location" defaultValue={value?.location} required placeholder="Main Hall" />
-      </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Venue">
+          <Input name="venue" defaultValue={value?.venue || value?.location} required placeholder="Main Auditorium" />
+        </Field>
+        <Field label="Organizer">
+          <Input name="organizer" defaultValue={value?.organizer} placeholder="CSE Society" />
+        </Field>
+      </div>
       <Field label="Capacity">
         <Input name="capacity" type="number" min={1} defaultValue={value?.capacity ?? 50} required />
       </Field>
@@ -35,11 +50,14 @@ function EventForm({ value }: { value?: any }) {
 
 function readEvent(f: FormData) {
   return {
-    name: String(f.get("name")),
+    name: String(f.get("name") || "").trim(),
+    description: String(f.get("description") || "").trim(),
     date: String(f.get("date")),
-    time: String(f.get("time")),
-    location: String(f.get("location")),
-    capacity: Number(f.get("capacity")),
+    start_time: String(f.get("start_time") || "10:00"),
+    end_time: String(f.get("end_time") || "12:00"),
+    venue: String(f.get("venue") || "Campus"),
+    organizer: String(f.get("organizer") || "Campus"),
+    capacity: Number(f.get("capacity") || 50),
   }
 }
 
@@ -53,88 +71,208 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true)
 
   async function fetchData() {
-    try { setEvents(await api.listEvents()) }
-    catch { toast.error("Failed to load events") }
-    finally { setLoading(false) }
+    try {
+      const data = await api.listEvents()
+      setEvents(Array.isArray(data) ? data : data?.data || [])
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to load events")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    fetchData()
+  }, [])
 
-  const meId = session?.user?.id ?? "guest"
-  const sorted = [...events].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
+  const userId = session?.user?.id ?? ""
+  const userName = session?.user?.name ?? "Student"
+  const studentId = session?.user?.email?.split("@")[0] || userId || "student"
+
+  const sorted = [...events].sort((a, b) => {
+    const aDate = `${a.date} ${a.start_time || a.time || ""}`
+    const bDate = `${b.date} ${b.start_time || b.time || ""}`
+    return aDate.localeCompare(bDate)
+  })
 
   return (
     <>
       <PageHeader
-        eyebrow="Events" title="Campus events"
-        description="Register in a tap. Capacity is enforced and counts update live."
+        eyebrow="Events"
+        title="Campus events"
+        description="Browse upcoming events, register with one click, and check live capacity."
         actions={
-          <EntityDialog trigger={<Button variant="mint"><Plus className="size-4" /> Add event</Button>}
-            title="Add event" submitLabel="Add event"
-            onSubmit={async (f) => { await api.createEvent(readEvent(f)); toast.success("Event created"); fetchData() }}>
+          <EntityDialog
+            trigger={<Button variant="mint"><Plus className="size-4" /> Add event</Button>}
+            title="Add event"
+            submitLabel="Add event"
+            onSubmit={async (f) => {
+              try {
+                await api.createEvent(readEvent(f))
+                toast.success("Event created")
+                fetchData()
+              } catch (err: any) {
+                toast.error(err?.message || "Failed to create event")
+                return false
+              }
+            }}
+          >
             <EventForm />
           </EntityDialog>
         }
       />
+
       <Container className="py-10">
-        <div className="grid gap-4 lg:grid-cols-2">
-          {loading && <p className="panel p-8 text-center text-sm text-muted-foreground lg:col-span-2">Loading…</p>}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {loading && <p className="panel p-8 text-center text-sm text-muted-foreground lg:col-span-2">Loading events…</p>}
           {sorted.map((ev) => {
-            const registered = ev.registered ?? 0
-            const full = registered >= ev.capacity
-            const mine = (ev.registrations ?? []).some((r: any) => r.student_id === meId || r.userId === meId)
+            const eventId = ev.id || ev._id
+            const registrations = Array.isArray(ev.registrations) ? ev.registrations : []
+            const registeredCount = ev.registered ?? registrations.length
+            const full = registeredCount >= ev.capacity || ev.status === "full"
+
+            const myReg = registrations.find(
+              (r: any) =>
+                (userId && r.user_id === userId) ||
+                (studentId && r.student_id === studentId) ||
+                r.name === userName
+            )
+            const isRegistered = Boolean(myReg)
+
             return (
-              <div key={ev._id} className="panel p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="font-display text-lg font-semibold">{ev.name}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">{formatDate(ev.date)} · {ev.time} · {ev.location}</p>
+              <div key={eventId} className="panel flex flex-col justify-between p-6">
+                <div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-display text-xl font-bold">{ev.name}</h2>
+                        {full && <Badge variant="secondary">Full</Badge>}
+                        {ev.status && ev.status !== "upcoming" && ev.status !== "full" && (
+                          <Badge variant="outline" className="capitalize">{ev.status}</Badge>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground flex items-center gap-2">
+                        <Calendar className="size-3.5" />
+                        {formatDate(ev.date)} · {ev.start_time || ev.time}
+                        {ev.end_time ? `–${ev.end_time}` : ""}
+                      </p>
+                      <p className="mt-0.5 text-sm text-muted-foreground flex items-center gap-2">
+                        <MapPin className="size-3.5" />
+                        {ev.venue || ev.location}
+                        {ev.organizer ? ` · Organized by ${ev.organizer}` : ""}
+                      </p>
+                      {ev.description && (
+                        <p className="mt-2 text-sm text-foreground/80">{ev.description}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <EntityDialog
+                        trigger={<Button variant="soft" size="icon" aria-label="Edit event"><Pencil className="size-4" /></Button>}
+                        title="Edit event"
+                        onSubmit={async (f) => {
+                          try {
+                            await api.updateEvent(eventId, readEvent(f))
+                            toast.success("Event updated")
+                            fetchData()
+                          } catch (err: any) {
+                            toast.error(err?.message || "Failed to update event")
+                            return false
+                          }
+                        }}
+                      >
+                        <EventForm value={ev} />
+                      </EntityDialog>
+                      <Button
+                        variant="soft"
+                        size="icon"
+                        aria-label="Delete event"
+                        onClick={async () => {
+                          try {
+                            await api.deleteEvent(eventId)
+                            toast.success("Event deleted")
+                            fetchData()
+                          } catch (err: any) {
+                            toast.error(err?.message || "Failed to delete event")
+                          }
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <EntityDialog
-                      trigger={<Button variant="soft" size="icon" aria-label="Edit event"><Pencil className="size-4" /></Button>}
-                      title="Edit event"
-                      onSubmit={async (f) => { await api.updateEvent(ev._id, readEvent(f)); toast.success("Event updated"); fetchData() }}>
-                      <EventForm value={ev} />
-                    </EntityDialog>
-                    <Button variant="soft" size="icon" aria-label="Delete event"
-                      onClick={async () => { await api.deleteEvent(ev._id); toast.success("Event deleted"); fetchData() }}>
-                      <Trash2 className="size-4" />
+
+                  <div className="mt-6 border-t border-border pt-4">
+                    <div className="flex items-center justify-between text-sm mb-1.5">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Users className="size-4" />
+                        <strong>{registeredCount}</strong> of {ev.capacity} spots filled
+                      </span>
+                      <span className="text-xs font-semibold">
+                        {Math.round((registeredCount / ev.capacity) * 100)}%
+                      </span>
+                    </div>
+                    <Progress value={Math.min(100, (registeredCount / ev.capacity) * 100)} className="h-2" />
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  {isRegistered ? (
+                    <Button
+                      variant="soft"
+                      className="w-full text-rose-400 hover:text-rose-300 border-rose-500/20"
+                      onClick={async () => {
+                        try {
+                          const regId = myReg.registration_id || myReg.student_id || studentId
+                          await api.cancelEventRegistration(eventId, regId)
+                          toast.success("Registration cancelled successfully")
+                          fetchData()
+                        } catch (err: any) {
+                          toast.error(err?.message || "Failed to cancel registration")
+                        }
+                      }}
+                    >
+                      <UserMinus className="size-4 mr-1.5" /> Cancel my registration
                     </Button>
-                  </div>
+                  ) : (
+                    <Button
+                      variant="mint"
+                      className="w-full"
+                      disabled={full || !session?.user}
+                      onClick={async () => {
+                        if (full) {
+                          toast.error("This event has reached full capacity")
+                          return
+                        }
+                        if (!session?.user) {
+                          toast.error("Please log in to register for events")
+                          return
+                        }
+                        try {
+                          await api.registerEvent(eventId, {
+                            student_id: studentId,
+                            name: userName,
+                            user_id: userId,
+                          })
+                          toast.success(`Registered for ${ev.name}!`)
+                          fetchData()
+                        } catch (err: any) {
+                          toast.error(err?.message || "Registration failed")
+                        }
+                      }}
+                    >
+                      <UserPlus className="size-4 mr-1.5" />
+                      {full ? "Event is full" : session?.user ? "Register for this event" : "Log in to register"}
+                    </Button>
+                  )}
                 </div>
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{registered} / {ev.capacity} registered</span>
-                    {full && <Badge variant="secondary">Full</Badge>}
-                  </div>
-                  <Progress value={(registered / ev.capacity) * 100} className="mt-2" />
-                </div>
-                {mine ? (
-                  <Button variant="soft" className="mt-4 w-full"
-                    onClick={async () => {
-                      try {
-                        await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}/api/events/${ev._id}/register/${meId}`, { method: "DELETE" })
-                        toast.success("Registration cancelled"); fetchData()
-                      } catch { toast.error("Failed to cancel") }
-                    }}>
-                    <UserMinus className="size-4" /> Cancel my registration
-                  </Button>
-                ) : (
-                  <Button variant="mint" className="mt-4 w-full" disabled={full || !session?.user}
-                    onClick={async () => {
-                      if (full) return
-                      try { await api.registerEvent(ev._id, { student_id: meId, name: session?.user?.name ?? "Guest" }); toast.success(`Registered for ${ev.name}`); fetchData() }
-                      catch { toast.error("Registration failed") }
-                    }}>
-                    <UserPlus className="size-4" />
-                    {full ? "Event is full" : session?.user ? "Register" : "Log in to register"}
-                  </Button>
-                )}
               </div>
             )
           })}
-          {!loading && sorted.length === 0 && <p className="panel p-8 text-center text-sm text-muted-foreground lg:col-span-2">No events yet.</p>}
+          {!loading && sorted.length === 0 && (
+            <p className="panel p-8 text-center text-sm text-muted-foreground lg:col-span-2">
+              No campus events found.
+            </p>
+          )}
         </div>
       </Container>
     </>

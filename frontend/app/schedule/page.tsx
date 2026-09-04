@@ -12,13 +12,16 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { api } from "@/lib/api"
 
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"]
 
 function ClassForm({ value }: { value?: any }) {
   return (
     <>
-      <Field label="Course">
-        <Input name="course" defaultValue={value?.course} required placeholder="CSE 331 — Algorithms" />
+      <Field label="Course Code">
+        <Input name="course" defaultValue={value?.course} required placeholder="e.g. CSE 4113" />
+      </Field>
+      <Field label="Course Title">
+        <Input name="title" defaultValue={value?.title} required placeholder="e.g. Pattern Recognition and Machine Learning" />
       </Field>
       <Field label="Day">
         <select
@@ -33,17 +36,22 @@ function ClassForm({ value }: { value?: any }) {
       </Field>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Starts">
-          <Input name="start" type="time" defaultValue={value?.start ?? "09:00"} required />
+          <Input name="start_time" type="time" defaultValue={value?.start_time || value?.start || "09:00"} required />
         </Field>
         <Field label="Ends">
-          <Input name="end" type="time" defaultValue={value?.end ?? "10:30"} required />
+          <Input name="end_time" type="time" defaultValue={value?.end_time || value?.end || "10:30"} required />
         </Field>
       </div>
-      <Field label="Room">
-        <Input name="room" defaultValue={value?.room} required placeholder="A-201" />
-      </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Room">
+          <Input name="room" defaultValue={value?.room} required placeholder="7A07" />
+        </Field>
+        <Field label="Section">
+          <Input name="section" defaultValue={value?.section} placeholder="A or B" />
+        </Field>
+      </div>
       <Field label="Instructor">
-        <Input name="instructor" defaultValue={value?.instructor} required placeholder="Dr. Rahman" />
+        <Input name="instructor" defaultValue={value?.instructor} placeholder="Prof. Dr. Md. Shahriar Mahbub" />
       </Field>
     </>
   )
@@ -51,12 +59,14 @@ function ClassForm({ value }: { value?: any }) {
 
 function read(f: FormData) {
   return {
-    course: String(f.get("course")),
+    course: String(f.get("course") || "").trim(),
+    title: String(f.get("title") || "").trim() || String(f.get("course") || "").trim(),
     day: String(f.get("day")),
-    start: String(f.get("start")),
-    end: String(f.get("end")),
-    room: String(f.get("room")),
-    instructor: String(f.get("instructor")),
+    start_time: String(f.get("start_time")),
+    end_time: String(f.get("end_time")),
+    room: String(f.get("room") || "").trim(),
+    instructor: String(f.get("instructor") || "TBA").trim(),
+    section: String(f.get("section") || "").trim(),
   }
 }
 
@@ -69,9 +79,9 @@ export default function SchedulePage() {
   async function fetchData() {
     try {
       const data = await api.listSchedules()
-      setClasses(data)
-    } catch {
-      toast.error("Failed to load schedules")
+      setClasses(Array.isArray(data) ? data : data?.data || [])
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to load schedules")
     } finally {
       setLoading(false)
     }
@@ -84,9 +94,15 @@ export default function SchedulePage() {
       classes
         .filter((c) => (day === "all" ? true : c.day === day))
         .filter((c) =>
-          `${c.course} ${c.instructor} ${c.room}`.toLowerCase().includes(query.toLowerCase())
+          `${c.course} ${c.title || ""} ${c.instructor || ""} ${c.room}`.toLowerCase().includes(query.toLowerCase())
         )
-        .sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || a.start.localeCompare(b.start)),
+        .sort((a, b) => {
+          const dayDiff = DAYS.indexOf(a.day) - DAYS.indexOf(b.day)
+          if (dayDiff !== 0) return dayDiff
+          const aStart = a.start_time || a.start || ""
+          const bStart = b.start_time || b.start || ""
+          return aStart.localeCompare(bStart)
+        }),
     [classes, query, day]
   )
 
@@ -102,9 +118,14 @@ export default function SchedulePage() {
             title="Add class"
             submitLabel="Add class"
             onSubmit={async (f) => {
-              await api.createSchedule(read(f))
-              toast.success("Class added")
-              fetchData()
+              try {
+                await api.createSchedule(read(f))
+                toast.success("Class added successfully")
+                fetchData()
+              } catch (err: any) {
+                toast.error(err?.message || "Failed to add class")
+                return false
+              }
             }}
           >
             <ClassForm />
@@ -117,7 +138,7 @@ export default function SchedulePage() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search course, instructor or room"
+            placeholder="Search course, title, instructor or room"
             className="max-w-sm"
           />
           <Select value={day} onValueChange={setDay}>
@@ -131,44 +152,58 @@ export default function SchedulePage() {
 
         <div className="mt-6 grid gap-3">
           {loading && <p className="panel p-8 text-center text-sm text-muted-foreground">Loading…</p>}
-          {filtered.map((c) => (
-            <div key={c._id} className="panel flex flex-wrap items-center justify-between gap-4 p-5">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="font-display font-semibold">{c.course}</h2>
-                  <Badge variant="secondary">{c.day}</Badge>
+          {filtered.map((c) => {
+            const classId = c.id || c._id
+            return (
+              <div key={classId} className="panel flex flex-wrap items-center justify-between gap-4 p-5">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-display font-semibold">{c.course}</h2>
+                    {c.section && <Badge variant="outline">Sec {c.section}</Badge>}
+                    <Badge variant="secondary">{c.day}</Badge>
+                  </div>
+                  {c.title && <p className="text-sm font-medium text-foreground/80 mt-0.5">{c.title}</p>}
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {c.start_time || c.start}–{c.end_time || c.end} · Room {c.room} · {c.instructor}
+                  </p>
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {c.start}–{c.end} · Room {c.room} · {c.instructor}
-                </p>
+                <div className="flex gap-2">
+                  <EntityDialog
+                    trigger={<Button variant="soft" size="icon" aria-label="Edit class"><Pencil className="size-4" /></Button>}
+                    title="Edit class"
+                    onSubmit={async (f) => {
+                      try {
+                        await api.updateSchedule(classId, read(f))
+                        toast.success("Class updated")
+                        fetchData()
+                      } catch (err: any) {
+                        toast.error(err?.message || "Failed to update class")
+                        return false
+                      }
+                    }}
+                  >
+                    <ClassForm value={c} />
+                  </EntityDialog>
+                  <Button
+                    variant="soft"
+                    size="icon"
+                    aria-label="Delete class"
+                    onClick={async () => {
+                      try {
+                        await api.deleteSchedule(classId)
+                        toast.success("Class deleted")
+                        fetchData()
+                      } catch (err: any) {
+                        toast.error(err?.message || "Failed to delete class")
+                      }
+                    }}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <EntityDialog
-                  trigger={<Button variant="soft" size="icon" aria-label="Edit class"><Pencil className="size-4" /></Button>}
-                  title="Edit class"
-                  onSubmit={async (f) => {
-                    await api.updateSchedule(c._id, read(f))
-                    toast.success("Class updated")
-                    fetchData()
-                  }}
-                >
-                  <ClassForm value={c} />
-                </EntityDialog>
-                <Button
-                  variant="soft"
-                  size="icon"
-                  aria-label="Delete class"
-                  onClick={async () => {
-                    await api.deleteSchedule(c._id)
-                    toast.success("Class deleted")
-                    fetchData()
-                  }}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
           {!loading && filtered.length === 0 && (
             <p className="panel p-8 text-center text-sm text-muted-foreground">
               No classes match that filter.
