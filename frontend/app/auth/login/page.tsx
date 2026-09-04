@@ -1,11 +1,12 @@
-import LoginIndex from "@/components/Auth/Login/LoginIndex";
+import LoginIndex from "@/components/Auth/Login/LoginIndex"
 
-const LoginPage = () => {
-    return (
-        <div>
-            <LoginIndex />
-        </div>
-    )
+export const metadata = {
+  title: "Log in — CampusOS",
+  description: "Log in to CampusOS to access schedules, room bookings, events, and your AI assistant.",
 }
 
-export default LoginPage;
+const LoginPage = () => {
+  return <LoginIndex />
+}
+
+export default LoginPage

@@ -8,6 +8,8 @@ import * as announcementService from "../services/announcementService.js"
 import * as assignmentService from "../services/assignmentService.js"
 
 const MAX_ROUNDS = 5
+const MAX_RETRIES = 3
+const INITIAL_DELAY_MS = 2000
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash"
 
 let _client = null
@@ -22,6 +24,27 @@ function getClient() {
     })
   }
   return _client
+}
+
+/**
+ * Retry a function with exponential backoff for transient API errors (429, 503).
+ */
+async function retryWithBackoff(fn, retries = MAX_RETRIES, delayMs = INITIAL_DELAY_MS) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      const status = err?.status || err?.response?.status || err?.code
+      const isRetryable = status === 429 || status === 503 || /overloaded|rate.limit|resource.exhausted/i.test(err.message)
+      if (!isRetryable || attempt === retries) {
+        throw err
+      }
+      const jitter = Math.random() * 500
+      const waitMs = delayMs * Math.pow(2, attempt) + jitter
+      console.warn(`[agent] Gemini API ${status || 'error'}, retrying in ${Math.round(waitMs)}ms (attempt ${attempt + 1}/${retries})...`)
+      await new Promise(resolve => setTimeout(resolve, waitMs))
+    }
+  }
 }
 
 export async function runAgent({ messages, student_id, name, user_id }) {
@@ -42,13 +65,15 @@ export async function runAgent({ messages, student_id, name, user_id }) {
   const userContext = { student_id, name, user_id, id: user_id }
 
   for (let i = 0; i < MAX_ROUNDS; i++) {
-    const res = await client.chat.completions.create({
-      model: MODEL,
-      messages: transcript,
-      tools,
-      tool_choice: "auto",
-      max_tokens: 1024
-    })
+    const res = await retryWithBackoff(() =>
+      client.chat.completions.create({
+        model: MODEL,
+        messages: transcript,
+        tools,
+        tool_choice: "auto",
+        max_tokens: 1024
+      })
+    )
 
     const msg = res.choices[0].message
     transcript.push(msg)
