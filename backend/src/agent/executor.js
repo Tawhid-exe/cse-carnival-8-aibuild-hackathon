@@ -1,24 +1,27 @@
-import Groq from "groq-sdk"
+import OpenAI from "openai"
 import { tools } from "./tools.js"
 import { SYSTEM_PROMPT } from "./prompt.js"
 
 const MAX_ROUNDS = 5
-const MODEL = "llama-3.3-70b-versatile"
+const MODEL = "gemini-3.6-flash"
 const API_BASE = `http://localhost:${process.env.PORT || 4000}`
 
-let _groq = null
-function getGroq() {
-  if (!_groq) {
-    if (!process.env.GROQ_API_KEY) {
-      throw new Error("GROQ_API_KEY is not set in backend/.env")
+let _client = null
+function getClient() {
+  if (!_client) {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not set in backend/.env")
     }
-    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+    _client = new OpenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
+    })
   }
-  return _groq
+  return _client
 }
 
 export async function runAgent({ messages, student_id, name }) {
-  const groq = getGroq()
+  const client = getClient()
   const now = new Date()
   const weekday = now.toLocaleDateString("en-US", { weekday: "long" })
   const iso = now.toISOString().slice(0, 10)
@@ -33,7 +36,7 @@ export async function runAgent({ messages, student_id, name }) {
   const toolCalls = []
 
   for (let i = 0; i < MAX_ROUNDS; i++) {
-    const res = await groq.chat.completions.create({
+    const res = await client.chat.completions.create({
       model: MODEL,
       messages: transcript,
       tools,

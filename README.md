@@ -9,7 +9,7 @@
 - **5 campus systems** — Schedules, Rooms, Events, Announcements, Assignments — each with full CRUD (create, read, update, delete) through both the dashboard UI and the REST API.
 - **Room booking with conflict detection** — booking a room checks every existing booking for time-overlap on the same date and rejects conflicts with a clear error.
 - **Event registration with guardrails** — enforces capacity limits and rejects duplicate student registrations.
-- **AI agent with real tool calling** — powered by Groq (`llama-3.3-70b-versatile`) using native function/tool calling. Every query executes actual tools against live MongoDB data, so answers always reflect the current database state.
+- **AI agent with real tool calling** — powered by Google Gemini (`gemini-2.5-flash`) using native function/tool calling. Every query executes actual tools against live MongoDB data, so answers always reflect the current database state.
 - **Idempotent auto-seeding** — the provided dataset is loaded into MongoDB on first boot. Seeding is skipped if data already exists, so your edits survive restarts.
 
 ---
@@ -24,7 +24,7 @@ cd cse-carnival-8-aibuild-hackathon
 
 cp backend/.env.example backend/.env
 cp frontend/.env.local.example frontend/.env.local
-# edit backend/.env: add MONGODB_URI (MongoDB Atlas) and GROQ_API_KEY
+# edit backend/.env: add MONGODB_URI (MongoDB Atlas) and GEMINI_API_KEY
 
 npm install
 npm install --prefix backend
@@ -56,7 +56,7 @@ npm run dev:frontend   # terminal 2 -> http://localhost:3000
 | Variable | Value | Notes |
 |----------|-------|-------|
 | `MONGODB_URI` | your Atlas connection string | MongoDB Atlas free tier works fine |
-| `GROQ_API_KEY` | your Groq API key | free at [console.groq.com](https://console.groq.com) |
+| `GEMINI_API_KEY` | your Gemini API key | free at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 | `PORT` | `4000` | backend port |
 | `FRONTEND_ORIGIN` | `http://localhost:3000` | allowed CORS origin |
 
@@ -69,7 +69,7 @@ npm run dev:frontend   # terminal 2 -> http://localhost:3000
 Notes:
 
 - In MongoDB Atlas, network access must allow the machine running the backend — allowing `0.0.0.0/0` is the easiest option for a hackathon demo.
-- Groq API keys are free; create one at [console.groq.com/keys](https://console.groq.com/keys).
+- Gemini API keys are free; create one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 
 ---
 
@@ -127,7 +127,7 @@ Every answer comes from tools hitting the live MongoDB collections — add a cla
 | Frontend | Next.js 14 + TypeScript + Tailwind CSS + shadcn/ui |
 | Backend | Node.js + Express + Mongoose |
 | Database | MongoDB Atlas |
-| LLM | Groq (`llama-3.3-70b-versatile`) with native tool calling |
+| LLM | Google Gemini (`gemini-2.5-flash`) with native tool calling |
 
 ---
 
@@ -139,7 +139,7 @@ cse-carnival-8-aibuild-hackathon/
 │   └── src/
 │       ├── models/        # Mongoose schemas (5 systems)
 │       ├── routes/        # Express routes (5 systems + agent)
-│       ├── agent/         # Groq tool definitions + agent executor
+│       ├── agent/         # Gemini tool definitions + agent executor
 │       └── middleware/    # Error handling
 ├── frontend/
 │   └── app/               # Next.js App Router pages (dashboard + agent)
