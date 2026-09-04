@@ -2,20 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #0f172a;
-}
+/*
+ * CampusOS design system
+ * Palette: Forest Graphite #18251D + Acid Mint #B7FF72
+ */
 
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0f172a;
-    --foreground: #f8fafc;
+    --radius: 0.875rem;
+
+    /* Forest Graphite #18251D */
+    --background: 148.5 10% 14%;
+    --foreground: 140 5% 96%;
+
+    /* Slightly lifted surfaces */
+    --card: 149 10% 17%;
+    --card-foreground: 140 5% 96%;
+    --popover: 149 10% 17%;
+    --popover-foreground: 140 5% 96%;
+
+    /* Acid Mint #B7FF72 */
+    --mint: 129.5 100% 85%;
+    --mint-foreground: 148.5 10% 14%;
+    --primary: 129.5 100% 85%;
+    --primary-foreground: 148.5 10% 14%;
+
+    --secondary: 149 10% 20%;
+    --secondary-foreground: 140 5% 96%;
+    --muted: 149 8% 19%;
+    --muted-foreground: 145 10% 55%;
+    --accent: 140 20% 22%;
+    --accent-foreground: 129.5 100% 85%;
+    --destructive: 25 80% 50%;
+    --destructive-foreground: 90 5% 98%;
+    --border: 140 5% 96% / 12%;
+    --input: 140 5% 96% / 16%;
+    --ring: 129.5 100% 85% / 60%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans, "DM Sans", ui-sans-serif, system-ui, sans-serif);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display, "Space Grotesk", ui-sans-serif, system-ui, sans-serif);
+    letter-spacing: -0.02em;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+@layer components {
+  .panel {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: calc(var(--radius) + 4px);
+    box-shadow:
+      0 1px 0 0 rgba(255,255,255,0.06) inset,
+      0 18px 40px -24px rgba(0,0,0,0.6);
+  }
+
+  .grid-glow {
+    background-image:
+      radial-gradient(60% 50% at 50% 0%, hsl(129.5 100% 85% / 0.12), transparent 70%),
+      linear-gradient(to right, hsl(140 5% 96% / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(140 5% 96% / 0.05) 1px, transparent 1px);
+    background-size: 100% 100%, 64px 64px, 64px 64px;
+  }
+
+  .text-gradient-mint {
+    background-image: linear-gradient(100deg, hsl(var(--mint)), hsl(150 50% 70%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }
