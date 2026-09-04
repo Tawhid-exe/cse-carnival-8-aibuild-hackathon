@@ -61,12 +61,12 @@ router.post("/:id/register", async (req, res, next) => {
     if (event.registrations.some((r) => r.student_id === student_id)) {
       throw new HttpError(409, "Already registered")
     }
-    if (event.registrations.length >= event.capacity) {
+    if (event.registered >= event.capacity) {
       throw new HttpError(409, "Event is full")
     }
 
     event.registrations.push({ student_id, name })
-    event.registered = event.registrations.length
+    event.registered += 1
     if (event.registered >= event.capacity) event.status = "full"
     await event.save()
     res.status(201).json({ data: event })
@@ -85,7 +85,7 @@ router.delete("/:id/register", async (req, res, next) => {
     event.registrations = event.registrations.filter((r) => r.student_id !== student_id)
     if (event.registrations.length === before) throw new HttpError(404, "Registration not found")
 
-    event.registered = event.registrations.length
+    event.registered = Math.max(event.registrations.length, event.registered - 1)
     if (event.status === "full" && event.registered < event.capacity) event.status = "upcoming"
     await event.save()
     res.json({ data: event })

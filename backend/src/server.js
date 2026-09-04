@@ -2,8 +2,11 @@ import express from "express"
 import cors from "cors"
 import morgan from "morgan"
 import dotenv from "dotenv"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 
 import { connectDB } from "./db.js"
+import { seedIfEmpty } from "./seed.js"
 import { errorHandler } from "./middleware/error.js"
 
 import schedules from "./routes/schedules.js"
@@ -13,7 +16,8 @@ import announcements from "./routes/announcements.js"
 import assignments from "./routes/assignments.js"
 import agent from "./routes/agent.js"
 
-dotenv.config()
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+dotenv.config({ path: path.resolve(__dirname, "../.env") })
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -38,6 +42,7 @@ app.use(errorHandler)
 
 async function main() {
   await connectDB()
+  await seedIfEmpty()
   app.listen(PORT, () => {
     console.log(`\n CampusOS backend running on http://localhost:${PORT}`)
     console.log(`  Health: http://localhost:${PORT}/health\n`)

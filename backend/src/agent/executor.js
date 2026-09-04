@@ -17,10 +17,17 @@ function getGroq() {
   return _groq
 }
 
-export async function runAgent({ messages }) {
+export async function runAgent({ messages, student_id, name }) {
   const groq = getGroq()
+  const now = new Date()
+  const weekday = now.toLocaleDateString("en-US", { weekday: "long" })
+  const iso = now.toISOString().slice(0, 10)
+  let system = `${SYSTEM_PROMPT}\n\nCurrent date: ${weekday}, ${iso}.`
+  if (student_id && name) {
+    system += `\nThe user you are helping is ${name} (student ID: ${student_id}). Use this identity for room bookings and event registrations unless they explicitly say otherwise.`
+  }
   const transcript = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: system },
     ...messages
   ]
   const toolCalls = []

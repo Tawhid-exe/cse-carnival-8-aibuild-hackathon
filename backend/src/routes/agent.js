@@ -5,11 +5,11 @@ const router = Router()
 
 router.post("/chat", async (req, res, next) => {
   try {
-    const { messages } = req.body
+    const { messages, student_id, name } = req.body
     if (!Array.isArray(messages)) {
       return res.status(400).json({ error: "messages array required" })
     }
-    const result = await runAgent({ messages })
+    const result = await runAgent({ messages, student_id, name })
     res.json(result)
   } catch (err) { next(err) }
 })

@@ -1,102 +1,148 @@
-# CampusOS — AI Build Hackathon
+# CampusOS
 
-An intelligent university platform powered by an AI agent that understands and acts on real-time campus data.
-
----
-
-## The Challenge
-
-Students struggle daily with scattered campus information — class changes buried in group chats, deadlines forgotten until the last minute, no easy way to know what's happening on campus right now.
-
-Your job: build **CampusOS** — a two-part app with a data dashboard and an AI agent that always reads live data.
-
-Read the full problem statement → [`PROBLEM_STATEMENT.md`](./PROBLEM_STATEMENT.md)
+**An intelligent campus operating system** — an AI-powered platform for AUST students: 5 campus data systems plus an AI agent that always reads live data via real tool calling. Never stale, never hallucinated.
 
 ---
 
-## Repository Structure
+## What It Does
 
-```
-campusos-hackathon/
-│
-├── README.md                    ← You are here
-├── PROBLEM_STATEMENT.md         ← Full problem statement + scoring
-├── SUBMISSION.md                ← How and where to submit
-│
-├── data/                        ← Seed data (load these into your backend)
-│   ├── schedules.json
-│   ├── rooms.json
-│   ├── events.json
-│   ├── announcements.json
-│   └── assignments.json
-│
-├── schema/
-│   └── schema.md                ← Field names, types, and constraints for all 5 systems
-│
-└── sample_queries/
-    └── sample_queries.md        ← Queries we will use when judging your agent
-```
+- **5 campus systems** — Schedules, Rooms, Events, Announcements, Assignments — each with full CRUD (create, read, update, delete) through both the dashboard UI and the REST API.
+- **Room booking with conflict detection** — booking a room checks every existing booking for time-overlap on the same date and rejects conflicts with a clear error.
+- **Event registration with guardrails** — enforces capacity limits and rejects duplicate student registrations.
+- **AI agent with real tool calling** — powered by Groq (`llama-3.3-70b-versatile`) using native function/tool calling. Every query executes actual tools against live MongoDB data, so answers always reflect the current database state.
+- **Idempotent auto-seeding** — the provided dataset is loaded into MongoDB on first boot. Seeding is skipped if data already exists, so your edits survive restarts.
 
 ---
 
-## How to Participate
-
-### 1. Fork the repository
-
-Click **Fork** in the top-right corner of this repo's GitHub page. This creates your own copy under your GitHub account, where you'll build your solution.
-
-### 2. Clone your fork
+## Quick Start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/campusos-hackathon.git
-cd campusos-hackathon
+git clone https://github.com/Tawhid-exe/cse-carnival-8-aibuild-hackathon.git
+cd cse-carnival-8-aibuild-hackathon
+# if work is on the feature branch:
+# git checkout feat/campusos-architecture
+
+cp backend/.env.example backend/.env
+cp frontend/.env.local.example frontend/.env.local
+# edit backend/.env: add MONGODB_URI (MongoDB Atlas) and GROQ_API_KEY
+
+npm install
+npm install --prefix backend
+npm install --prefix frontend
 ```
 
-### 3. Build your solution inside your fork
+Run both servers with a single command from the repo root:
 
-> Your solution lives in your fork — do not open a pull request to this repo.
+```bash
+npm run dev
+```
 
-### 4. Making your fork private
+Or run them separately in two terminals:
 
-By default, a fork is public. If you want to keep your work hidden from other participants while you build:
+```bash
+npm run dev:backend    # terminal 1 -> http://localhost:4000
+npm run dev:frontend   # terminal 2 -> http://localhost:3000
+```
 
-1. Go to your fork on GitHub
-2. Open **Settings** (top of the repo page)
-3. Scroll to the **Danger Zone** at the bottom
-4. Click **Change repository visibility** → **Make private**
-5. Confirm by typing the repository name
-
-> **You may keep your fork private during the hackathon period, but it must be switched back to public by 8:30 PM on the submission deadline.** Repositories still private after that time will not be judged. To make it public again, repeat the steps above and choose **Make public** instead.
-
-### 5. Submit
-
-Submit your fork's public URL via the instructions in [`SUBMISSION.md`](./SUBMISSION.md).
+- Backend: http://localhost:4000 (health check at http://localhost:4000/health)
+- Frontend: http://localhost:3000
 
 ---
 
-## Quick Links
+## Environment Variables
 
-| Resource | Link |
-|----------|------|
-| Full problem statement | [`PROBLEM_STATEMENT.md`](./PROBLEM_STATEMENT.md) |
-| Data schema | [`schema/schema.md`](./schema/schema.md) |
-| Sample agent queries | [`sample_queries/sample_queries.md`](./sample_queries/sample_queries.md) |
-| Submission guide | [`SUBMISSION.md`](./SUBMISSION.md) |
+### `backend/.env`
+
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `MONGODB_URI` | your Atlas connection string | MongoDB Atlas free tier works fine |
+| `GROQ_API_KEY` | your Groq API key | free at [console.groq.com](https://console.groq.com) |
+| `PORT` | `4000` | backend port |
+| `FRONTEND_ORIGIN` | `http://localhost:3000` | allowed CORS origin |
+
+### `frontend/.env.local`
+
+| Variable | Value |
+|----------|-------|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:4000` |
+
+Notes:
+
+- In MongoDB Atlas, network access must allow the machine running the backend — allowing `0.0.0.0/0` is the easiest option for a hackathon demo.
+- Groq API keys are free; create one at [console.groq.com/keys](https://console.groq.com/keys).
 
 ---
 
-## Seed Data Overview
+## API Overview
 
-| File | Records | What It Contains |
-|------|---------|-----------------|
-| `schedules.json` | 24 | Class timetable — course, day, time, room, instructor |
-| `rooms.json` | 20 | Rooms 7A01–7A07, 7B01–7B08, 7C01–7C05 with equipment and bookings |
-| `events.json` | 7 | Campus events with registration lists |
-| `announcements.json` | 8 | Notices with priority levels and expiry dates |
-| `assignments.json` | 8 | Course assignments with deadlines and submission status |
+All five systems expose the same CRUD shape, mounted under `/api`:
 
-> **Important:** These JSON files are only the starting/seed data — not the database itself. Load them into a real backend (a database, or at minimum a backend service with persistent storage) on app startup. Your dashboard and AI agent must both read from and write to that backend, not the static JSON files directly. If you add, edit, or delete a record, the change must be saved in your backend and still be there after a reload — the JSON files in this repo will not update. The agent is also expected to always query the current backend state, not a cached or hardcoded copy of the seed data.
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/schedules` | List schedules (filters: `day`, `course`, `instructor`, `room`, `section`) |
+| `GET /api/rooms` | List rooms (filters: `type`, `min_capacity`, `equipment`, `room_number`, availability window) |
+| `GET /api/events` | List events (filters: `date`, `status`) |
+| `GET /api/announcements` | List announcements (filter: `priority`) |
+| `GET /api/assignments` | List assignments (filters: `course`, `status`, `deadline_before`) |
+| `GET /api/{system}/:id` | Get one record by id |
+| `POST /api/{system}` | Create a record |
+| `PUT /api/{system}/:id` | Update a record |
+| `DELETE /api/{system}/:id` | Delete a record |
+
+Action endpoints:
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/rooms/:id/book` | Book a room (rejects time-overlap conflicts with `409`) |
+| `DELETE /api/rooms/:id/book/:bookingId` | Cancel a booking |
+| `POST /api/events/:id/register` | Register a student (capacity + duplicate checks, `409` on violation) |
+| `DELETE /api/events/:id/register` | Cancel a registration |
+| `POST /api/agent/chat` | Chat with the AI agent (tool calling over live data) |
+| `GET /health` | Backend health check |
+
+Where `{system}` is one of `schedules`, `rooms`, `events`, `announcements`, `assignments`.
 
 ---
 
-Good luck. Build something that actually works.
+## Try the Agent
+
+Open **http://localhost:3000/agent** and ask things like:
+
+- "When is my next class?"
+- "What classes do I have on Wednesday?"
+- "Assignments due this week?"
+- "Show high priority announcements"
+- "Find a lab with a projector and capacity for 30"
+- "Book Room 7A02 tomorrow from 3:00 PM to 5:00 PM for project work" — it will ask for (or use) your name to attach to the booking
+- "Register me for the Guest Lecture on Deep Learning"
+
+Every answer comes from tools hitting the live MongoDB collections — add a class in the dashboard, ask the agent, and see it reflected immediately.
+
+---
+
+## Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | Next.js 14 + TypeScript + Tailwind CSS + shadcn/ui |
+| Backend | Node.js + Express + Mongoose |
+| Database | MongoDB Atlas |
+| LLM | Groq (`llama-3.3-70b-versatile`) with native tool calling |
+
+---
+
+## Project Structure
+
+```
+cse-carnival-8-aibuild-hackathon/
+├── backend/
+│   └── src/
+│       ├── models/        # Mongoose schemas (5 systems)
+│       ├── routes/        # Express routes (5 systems + agent)
+│       ├── agent/         # Groq tool definitions + agent executor
+│       └── middleware/    # Error handling
+├── frontend/
+│   └── app/               # Next.js App Router pages (dashboard + agent)
+├── data/                  # Seed JSON (schedules, rooms, events, announcements, assignments)
+└── schema/                # Data schema reference for all 5 systems
+```
